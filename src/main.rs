@@ -55,7 +55,7 @@ fn print_centered(win: *mut i8, s: &str) {
 
 fn help(win: *mut i8) {
     clear();
-    print_centered_left_align(win, &HELP_LINES[..]);
+    print_centered_left_align(win, &HELP_LINES);
     getch();
 }
 
@@ -185,6 +185,8 @@ fn calculate_scores(dice: &[u8]) -> [u8; 13] {
     scores
 }
 
+/// UI
+
 fn print_combinations(win: *mut i8,
                       pos: (i32, i32), 
                       scores: &[u8],
@@ -214,7 +216,7 @@ fn print_combinations(win: *mut i8,
     }
 }
 
-fn player_choice(win: *mut i8, game_state: &mut GameState) {
+fn player_turn(win: *mut i8, game_state: &mut GameState) {
     let mut dice = [0u8; 5];
     randomize_dice(&mut dice, &(0..=4).collect());
     let mut chosen = [false; 5];
@@ -378,7 +380,42 @@ fn wait(time: Duration) {
     std::thread::sleep(time);
 }
 
+fn ai_turn(win: *mut i8, game_state: &mut GameState) {
+    update(game_state);
+    print_centered(win, "Ai is rolling...");
+    wait(Duration::from_millis(800));
+    let mut dice = [0u8; 5];
+    randomize_dice(&mut dice, &(0..=4).collect());
+
+    update(&game_state);
+    print_centered(win, "Ai rolled:");
+
+    let (win_height, win_width) = get_win_size(win);
+    let strs: Vec<_> = dice.iter().map(|x| x.to_string()).collect();
+    let joined = strs.join(", ");
+    mvaddstr(win_height / 2 + 2, (win_width - joined.len() as i32) / 2, &joined);
+    wait(Duration::from_millis(1000));
+
+    let scores = calculate_scores(&dice);
+    let combinations_left: Vec<_> = game_state.ai_chosen_combinations.iter()
+        .enumerate()
+        .filter(|x| !*x.1)
+        .map(|x| x.0)
+        .collect();
+
+    let choice = *combinations_left.iter().max_by_key(|&i| scores[*i]).unwrap();
+
+    let message = format!("Ai chose: {} for {} points",
+                          score_index_to_string(choice),
+                          scores[choice]);
+    mvaddstr(win_height / 2 + 4, (win_width - message.len() as i32) / 2, &message);
+    wait(Duration::from_millis(1500));
+    game_state.ai_chosen_combinations[choice] = true;
+    game_state.ai_score += scores[choice] as i32;
+}
+
 //TODO: yahtzee bonus and joker rules
+//TODO: lower section bonus
 fn main() {
     let win = initscr();
     start_color();
@@ -387,7 +424,7 @@ fn main() {
     keypad(win, true);
     curs_set(CURSOR_VISIBILITY::CURSOR_INVISIBLE);
     
-    let prompts = vec!["Hello, this is Yahtzee.", "Press 'h' for help.", "Press Enter to play."];
+    let prompts = ["Hello, this is Yahtzee.", "Press 'h' for help.", "Press Enter to play."];
     print_centered_left_align(win, &prompts);
 
     if getch() as u8 as char == 'h' {
@@ -405,44 +442,12 @@ fn main() {
     };
 
     loop {
-
         match game_state.turn.player {
             Player::Human => {
-                player_choice(win, &mut game_state);
-                
+                player_turn(win, &mut game_state);
             }
             Player::AI => {
-                update(&game_state);
-                print_centered(win, "Ai is rolling...");
-                wait(Duration::from_millis(800));
-                let mut dice = [0u8; 5];
-                randomize_dice(&mut dice, &(0..=4).collect());
-
-                update(&game_state);
-                print_centered(win, "Ai rolled:");
-
-                let (win_height, win_width) = get_win_size(win);
-                let strs: Vec<_> = dice.iter().map(|x| x.to_string()).collect();
-                let joined = strs.join(", ");
-                mvaddstr(win_height / 2 + 2, (win_width - joined.len() as i32) / 2, &joined);
-                wait(Duration::from_millis(1000));
-
-                let scores = calculate_scores(&dice);
-                let combinations_left: Vec<_> = game_state.ai_chosen_combinations.iter()
-                    .enumerate()
-                    .filter(|x| !*x.1)
-                    .map(|x| x.0)
-                    .collect();
-
-                let choice = *combinations_left.iter().max_by_key(|&i| scores[*i]).unwrap();
-
-                let message = format!("Ai chose: {} for {} points",
-                                      score_index_to_string(choice),
-                                      scores[choice]);
-                mvaddstr(win_height / 2 + 4, (win_width - message.len() as i32) / 2, &message);
-                wait(Duration::from_millis(1500));
-                game_state.ai_chosen_combinations[choice] = true;
-                game_state.ai_score += scores[choice] as i32;
+                ai_turn(win, &mut game_state)
             }
         }
         game_state.turn.next();
@@ -462,12 +467,15 @@ fn main() {
                     "You lost!"
                 }
             };
-            print_centered_left_align(win, &vec![
+            print_centered_left_align(win, &[
                 "Game ended!",
                 message,
                 "",
                 &format!("Your score: {}\n", game_state.player_score),
-                &format!("Ai score: {}", game_state.ai_score)]);
+                &format!("Ai score: {}", game_state.ai_score),
+                "",
+                "Press any button to exit."
+            ]);
             getch();
             break;
         }
