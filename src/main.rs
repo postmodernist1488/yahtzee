@@ -187,7 +187,6 @@ fn calculate_scores(dice: &[u8]) -> [u8; 13] {
 
 fn print_combinations(win: *mut i8,
                       pos: (i32, i32), 
-                      dice: &[u8], 
                       scores: &[u8],
                       current_element: usize, 
                       game_state: &GameState) {
@@ -223,12 +222,12 @@ fn player_choice(win: *mut i8, game_state: &mut GameState) {
     let mut current_element: usize = 0;
 
     let (win_height, win_width) = get_win_size(win);
+    let mut scores = calculate_scores(&dice);
     while rolls_left > 0 {
         update(game_state);
 
         mvaddstr(win_height / 2 - 3, 0, &format!("Rolls left: {}", rolls_left));
-        let scores = calculate_scores(&dice);
-        print_combinations(win, (win_height / 2, win_width / 2), &dice, &scores, 14, game_state);
+        print_combinations(win, (win_height / 2, win_width / 2), &scores, 14, game_state);
 
         for i in 0..5 {
             //TOOD: print unicode dice doesn't work :(
@@ -285,6 +284,7 @@ fn player_choice(win: *mut i8, game_state: &mut GameState) {
                     5 => {
                         let to_randomize = (0..=4).filter(|i| !chosen[*i as usize]).collect();
                         randomize_dice(&mut dice, &to_randomize);
+                        scores = calculate_scores(&dice);
                         rolls_left -= 1;
                     }
                     // Hold
@@ -308,8 +308,7 @@ fn player_choice(win: *mut i8, game_state: &mut GameState) {
         }
         mvaddstr(win_height / 2 - 11, 30, "Choose a combination");
 
-        let scores = calculate_scores(&dice);
-        print_combinations(win, (win_height / 2, win_width / 2), &dice, &scores, current_element, game_state);
+        print_combinations(win, (win_height / 2, win_width / 2), &scores, current_element, game_state);
 
         let key = getch();
         match key {
@@ -447,8 +446,9 @@ fn main() {
             }
         }
         game_state.turn.next();
+        game_state.turn.n = 14;
         if game_state.turn.n == 14 {
-            update(&game_state);
+            clear();
             use std::cmp::Ordering;
             
             let message = match game_state.player_score.cmp(&game_state.ai_score) {
@@ -462,7 +462,12 @@ fn main() {
                     "You lost!"
                 }
             };
-            print_centered_left_align(win, &vec!["Game ended!", message]);
+            print_centered_left_align(win, &vec![
+                "Game ended!",
+                message,
+                "",
+                &format!("Your score: {}\n", game_state.player_score),
+                &format!("Ai score: {}", game_state.ai_score)]);
             getch();
             break;
         }
