@@ -178,7 +178,7 @@ fn calculate_scores(dice: &[u8]) -> [u8; 13] {
     if straight_len >= 5 {
         scores[combinations::LARGE_STRAIGHT] = 40;
     }
-    if most_frequent_count >= 50 {
+    if most_frequent_count >= 5 {
         scores[combinations::YAHTZEE] = 50;
     }
     scores[combinations::CHANCE] = dice.iter().sum();
@@ -451,7 +451,6 @@ fn main() {
             }
         }
         game_state.turn.next();
-        game_state.turn.n = 14;
         if game_state.turn.n == 14 {
             clear();
             use std::cmp::Ordering;
@@ -512,7 +511,7 @@ mod test {
     fn yahtzee() {
         let dice = [1, 1, 1, 1, 1];
         let scores = calculate_scores(&dice);
-        assert_eq!(scores, [5u8, 0, 0, 0, 0, 0, 5, 5, 0, 0, 0, 0, 5]);
+        assert_eq!(scores, [5u8, 0, 0, 0, 0, 0, 5, 5, 0, 0, 0, 50, 5]);
     }
 
     #[test]
