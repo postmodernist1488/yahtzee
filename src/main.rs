@@ -54,7 +54,7 @@ fn print_centered(win: *mut i8, s: &str) {
 }
 
 fn help(win: *mut i8) {
-    clear();
+    erase();
     print_centered_left_align(win, &HELP_LINES);
     getch();
 }
@@ -365,7 +365,7 @@ struct GameState {
 }
 
 fn update(game_state: &GameState) {
-    clear();
+    erase();
     addstr(&game_state.turn.to_string());
     addch('\n' as u32);
     addstr(&format!("Your score: {}", game_state.player_score));
@@ -452,7 +452,7 @@ fn main() {
         }
         game_state.turn.next();
         if game_state.turn.n == 14 {
-            clear();
+            erase();
             use std::cmp::Ordering;
             
             let message = match game_state.player_score.cmp(&game_state.ai_score) {
