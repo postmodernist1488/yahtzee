@@ -10,7 +10,7 @@ Yahtzee game in Rust
 - Simple AI that plays against the human player
 
 ## Installation
-You can either build the latest version from Github:
+You can either build the latest version from [Github](https://github.com/postmodernist1488/yahtzee-rs.git):
 ```console
 $ git clone https://github.com/postmodernist1488/yahtzee-rs.git
 $ cd yahtzee-rs
@@ -18,7 +18,7 @@ $ cargo build --release
 $ cd target/release/
 $ ./yahtzee
 ```
-or install from creates.io:
+or install from [creates.io](https://crates.io/crates/yahtzee):
 ```console
 $ cargo install yahtzee
 $ yahtzee
