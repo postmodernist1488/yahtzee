@@ -3,8 +3,8 @@ Yahtzee game in Rust
 
 ## Controls
 - Arrow keys <kbd>Up</kbd>/<kbd>Down</kbd>/<kbd>Enter</kbd> to choose die for saving
-- <kbd>Ctrl+C</kbd> or <kbd>q</kbd> during the game to exit
-
+- You can also use <kbd>h</kbd><kbd>j</kbd><kbd>k</kbd><kbd>l</kbd>
+- <kbd>Ctrl+C</kbd> or <kbd>Q</kbd> during the game to exit
 ## Features
 - Ncurses TUI for playing in your favourite terminal
 - Simple AI that plays against the human player
