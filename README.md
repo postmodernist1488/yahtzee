@@ -1,4 +1,4 @@
-# yahtzee
+# Yahtzee-rs
 Yahtzee game in Rust
 
 ## Controls
