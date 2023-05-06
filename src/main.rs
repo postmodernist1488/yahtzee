@@ -2,6 +2,7 @@ use std::fmt;
 use std::io::Write;
 use std::time::Duration;
 
+use keys::*;
 use ncurses::*;
 
 use rand::Rng;
@@ -56,7 +57,7 @@ fn print_centered(win: *mut i8, s: &str) {
 fn help(win: *mut i8) {
     erase();
     print_centered_left_align(win, &HELP_LINES);
-    getch();
+    while getch() != KEY_NEWLINE {};
 }
 
 enum Player {
@@ -102,6 +103,10 @@ fn randomize_dice(dice: &mut [u8], to_randomize: &Vec<u8>) {
     }
 }
 
+mod keys {
+    pub const KEY_Q      : i32 = 'q' as i32;
+    pub const KEY_NEWLINE: i32 = '\n' as i32;
+}
 #[allow(dead_code)]
 mod combinations {
     pub const ACES            : usize = 0;
@@ -277,7 +282,7 @@ fn player_turn(win: *mut i8, game_state: &mut GameState) {
                     chosen[current_element] = false;
                 }
             }
-            10 => {
+            KEY_NEWLINE => {
                 match current_element { 
                     0..=4 => {
                         chosen[current_element] = !chosen[current_element];
@@ -297,6 +302,9 @@ fn player_turn(win: *mut i8, game_state: &mut GameState) {
                         unreachable!();
                     }
                 }
+            }
+            KEY_Q => {
+                user_quit(win, game_state);
             }
             _ => ()
         }
@@ -325,12 +333,15 @@ fn player_turn(win: *mut i8, game_state: &mut GameState) {
                     current_element += 1;
                 }
             }
-            10 => {
+            KEY_NEWLINE => {
                 if !game_state.player_chosen_combinations[current_element] {
                     game_state.player_chosen_combinations[current_element] = true;
                     game_state.player_score += scores[current_element] as i32;
                     break;
                 }
+            }
+            KEY_Q =>{
+                user_quit(win, game_state);
             }
             _ => ()
         }
@@ -414,8 +425,46 @@ fn ai_turn(win: *mut i8, game_state: &mut GameState) {
     game_state.ai_score += scores[choice] as i32;
 }
 
+fn user_quit(win: *mut i8, game_state: &GameState) {
+    let mut ans = false;
+    let (win_height, win_width) = get_win_size(win);
+    let (center_y, center_x) = (win_height / 2, win_width / 2);
+
+    loop {
+        update(game_state);
+        print_centered(win, "Are you sure you want to quit?");
+        //  | | | |
+        mvaddstr(center_y + 2, center_x - 4, "yes");
+        mvaddstr(center_y + 2, center_x + 2, "no");
+        if ans {
+            mvaddch(center_y + 2, center_x - 5, '[' as u32);
+            mvaddch(center_y + 2, center_x - 1, ']' as u32);
+        }
+        else {
+            mvaddch(center_y + 2, center_x + 1, '[' as u32);
+            mvaddch(center_y + 2, center_x + 4, ']' as u32);
+        }
+        let key = getch();
+        match key {
+            KEY_LEFT | KEY_RIGHT => {
+                ans = !ans;
+            }
+            KEY_NEWLINE if ans => {
+                    endwin();
+                    std::process::exit(0);
+            }
+            KEY_NEWLINE | KEY_Q => {
+                break;
+            }
+            _ => (),
+        }
+    }
+}
+
 //TODO: yahtzee bonus and joker rules
 //TODO: lower section bonus
+//TODO: vim controls
+//TODO: q to exit
 fn main() {
     let win = initscr();
     start_color();
@@ -423,6 +472,7 @@ fn main() {
     init_pair(HIGLIGHT_PAIR, COLOR_BLACK, COLOR_WHITE);
     keypad(win, true);
     curs_set(CURSOR_VISIBILITY::CURSOR_INVISIBLE);
+    noecho();
     
     let prompts = ["Hello, this is Yahtzee.", "Press 'h' for help.", "Press Enter to play."];
     print_centered_left_align(win, &prompts);
