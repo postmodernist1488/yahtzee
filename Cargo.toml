@@ -1,9 +1,13 @@
 [package]
-name = "yatzee"
+name = "yahtzee"
 version = "0.1.0"
 edition = "2021"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+license = "GPL-3.0-only"
+description = "Yahtzee game with ncurses UI"
+repository = "https://github.com/postmodernist1488/yahtzee-rs"
+readme = "README.md"
+keywords = ["dice", "tui", "curses", "terminal"]
+categories = ["games"]
 
 [dependencies]
 ncurses = { version = "5.101.0", default-features = false, features = ["wide"] }
