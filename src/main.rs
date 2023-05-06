@@ -105,6 +105,10 @@ fn randomize_dice(dice: &mut [u8], to_randomize: &Vec<u8>) {
 
 mod keys {
     pub const KEY_Q      : i32 = 'q' as i32;
+    pub const KEY_H      : i32 = 'h' as i32;
+    pub const KEY_L      : i32 = 'l' as i32;
+    pub const KEY_J      : i32 = 'j' as i32;
+    pub const KEY_K      : i32 = 'k' as i32;
     pub const KEY_NEWLINE: i32 = '\n' as i32;
 }
 #[allow(dead_code)]
@@ -265,19 +269,19 @@ fn player_turn(win: *mut i8, game_state: &mut GameState) {
 
         let key = getch();
         match key {
-            KEY_LEFT => {
+            KEY_LEFT | KEY_H => {
                 current_element = (current_element as i32 - 1).rem_euclid(7) as usize;
             }
-            KEY_RIGHT => {
+            KEY_RIGHT | KEY_L => {
                 current_element = (current_element + 1).rem_euclid(7);
             }
 
-            KEY_UP => {
+            KEY_UP | KEY_K => {
                 if let 0..=4 = current_element {
                     chosen[current_element] = true;
                 }
             }
-            KEY_DOWN => {
+            KEY_DOWN | KEY_J => {
                 if let 0..=4 = current_element {
                     chosen[current_element] = false;
                 }
@@ -322,13 +326,13 @@ fn player_turn(win: *mut i8, game_state: &mut GameState) {
 
         let key = getch();
         match key {
-            KEY_UP => {
+            KEY_UP | KEY_K => {
                 if current_element > 0 {
                     current_element -= 1;
                 }
 
             }
-            KEY_DOWN => {
+            KEY_DOWN | KEY_J => {
                 if current_element < 12 {
                     current_element += 1;
                 }
@@ -446,7 +450,7 @@ fn user_quit(win: *mut i8, game_state: &GameState) {
         }
         let key = getch();
         match key {
-            KEY_LEFT | KEY_RIGHT => {
+            KEY_LEFT | KEY_H | KEY_RIGHT | KEY_L => {
                 ans = !ans;
             }
             KEY_NEWLINE if ans => {
