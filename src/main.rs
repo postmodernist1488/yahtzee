@@ -10,7 +10,7 @@ use rand::Rng;
 const REGULAR_PAIR: i16 = 0;
 const HIGLIGHT_PAIR: i16 = 1;
 
-static HELP_LINES: [&str; 20] = ["                       Yatzee rules.", 
+const HELP_LINES: [&str; 20] = ["                       Yatzee rules.", 
     "",
     "On each turn every player rolls 5 dice.", 
     "They can save any dice they want and reroll the dice up to 2 times.",
@@ -32,6 +32,86 @@ static HELP_LINES: [&str; 20] = ["                       Yatzee rules.",
     "                           Press Enter to play"
 ];
 
+enum PlayerKind {
+    Human,
+    AI
+}
+
+struct Turn {
+    player: PlayerKind,
+    n: u32
+}
+
+impl Default for Turn {
+    fn default() -> Self {
+        Turn {
+            player: PlayerKind::Human,
+            n: 1
+        }
+    }
+}
+
+impl Turn {
+    fn next(&mut self) {
+        match self.player {
+            PlayerKind::Human => self.player = PlayerKind::AI,
+            PlayerKind::AI => {
+                self.player = PlayerKind::Human;
+                self.n += 1;
+            }
+        }
+    }
+
+}
+
+impl fmt::Display for Turn {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self.player {
+            PlayerKind::Human => {
+                write!(f, "Your turn ({})", self.n)
+            }
+            PlayerKind::AI => {
+                write!(f, "AI turn ({})", self.n)
+            }
+        }
+    }
+}
+
+#[derive(Default, Debug)]
+struct PlayerData {
+    score: i32,
+    combinations_scores: [u8; 13],
+    combinations_used: [bool; 13],
+    got_upper_bonus: bool,
+}
+
+impl PlayerData {
+    fn has_used(&self, index: usize) -> bool {
+        self.combinations_used[index]
+    }
+    fn upper_sum(&self) -> i32 {
+        self.combinations_scores[0..6].iter().sum::<u8>() as i32
+    }
+    fn add_score(&mut self, index: usize, score: u8) {
+        self.combinations_scores[index] = score;
+        self.combinations_used[index] = true;
+        self.score += score as i32;
+        if !self.got_upper_bonus &&
+            index <= Combinations::Sixes as usize && 
+            self.upper_sum() >= 63 {
+            self.score += 35 as i32;
+            self.got_upper_bonus = true;
+        }
+    }
+}
+
+#[derive(Default)]
+struct GameState {
+    turn: Turn,
+    player: PlayerData,
+    ai: PlayerData
+}
+
 fn get_win_size(win: *mut i8) -> (i32, i32) {
     let mut x = 0; 
     let mut y = 0;
@@ -49,6 +129,7 @@ fn print_centered_left_align(win: *mut i8, lines: &[&str]) {
         mvaddstr(begin + i as i32, center_x - offset, line);
     }
 }
+
 fn print_centered(win: *mut i8, s: &str) {
     let (win_height, win_width) = get_win_size(win);
     mvaddstr(win_height / 2, (win_width - s.len() as i32) / 2, s);
@@ -58,43 +139,6 @@ fn help(win: *mut i8) {
     erase();
     print_centered_left_align(win, &HELP_LINES);
     while getch() != KEY_NEWLINE {};
-}
-
-enum Player {
-    Human,
-    AI
-}
-
-struct Turn {
-    player: Player,
-    n: u32
-}
-
-impl Turn {
-
-    fn next(&mut self) {
-        match self.player {
-            Player::Human => self.player = Player::AI,
-            Player::AI => {
-                self.player = Player::Human;
-                self.n += 1;
-            }
-        }
-    }
-
-}
-
-impl fmt::Display for Turn {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self.player {
-            Player::Human => {
-                write!(f, "Your turn ({})", self.n)
-            }
-            Player::AI => {
-                write!(f, "AI turn ({})", self.n)
-            }
-        }
-    }
 }
 
 fn randomize_dice(dice: &mut [u8], to_randomize: &Vec<u8>) {
@@ -194,6 +238,10 @@ fn calculate_scores(dice: &[u8]) -> [u8; 13] {
     scores
 }
 
+fn print_padded_from_right(y: i32, win_width: i32, padding: i32, to_print: &str) {
+    mvaddstr(y, win_width - padding - to_print.len() as i32, to_print);
+}
+
 /// UI
 
 fn print_combinations(win: *mut i8,
@@ -201,6 +249,17 @@ fn print_combinations(win: *mut i8,
                       scores: &[u8],
                       current_element: usize, 
                       game_state: &GameState) {
+
+    let mut offset = 0;
+    let (_, win_width) = get_win_size(win);
+
+    const PADDING1: i32 = 3;
+    const SCORE: &str = "Player Score";
+    print_padded_from_right(pos.0 - 10, win_width, PADDING1, SCORE);
+    const PADDING2: i32 = PADDING1 * 2 + SCORE.len() as i32;
+    const VALUE: &str = "Value";
+    print_padded_from_right(pos.0 - 10, win_width, PADDING2, VALUE);
+
     for (i, &score) in scores.iter().enumerate() {
 
         let pair = if i == current_element {
@@ -211,17 +270,37 @@ fn print_combinations(win: *mut i8,
         };
 
         attron(COLOR_PAIR(pair));
-        mvaddstr(pos.0 - 9 + i as i32, pos.1, score_index_to_string(i));
+        mvaddstr(pos.0 - 9 + i as i32 + offset, pos.1, score_index_to_string(i));
 
-        let to_print = if !game_state.player_chosen_combinations[i] {
+
+        let to_print = if !game_state.player.has_used(i) {
             score.to_string()
         } else {
             "x".to_string()
         };
 
-        let (_, win_width) = get_win_size(win);
-        mvaddstr(pos.0 - 9 + i as i32, win_width - 3 - to_print.len() as i32, &to_print);
+        print_padded_from_right(pos.0 - 9 + i as i32 + offset, win_width, PADDING2, &to_print);
+
         attroff(COLOR_PAIR(pair));
+
+        let to_print = if game_state.player.has_used(i) {
+            game_state.player.combinations_scores[i].to_string()
+        } else {
+            " ".to_string()
+        };
+        print_padded_from_right(pos.0 - 9 + i as i32 + offset, win_width, PADDING1, &to_print);
+
+
+        if i == Combinations::Sixes as usize {
+            offset += 3;
+            mvaddstr(pos.0 - 9 + i as i32 + 1, pos.1, "Total score");
+            let upper_sum = game_state.player.upper_sum();
+            print_padded_from_right(pos.0 - 9 + i as i32 + 1, win_width, PADDING1, &upper_sum.to_string());
+
+            mvaddstr(pos.0 - 9 + i as i32 + 2, pos.1, "Bonus (63 in total or more)");
+            print_padded_from_right(pos.0 - 9 + i as i32 + 2, win_width, PADDING1,
+                if game_state.player.got_upper_bonus { "35" } else { "0" });
+        }
     }
 }
 
@@ -241,9 +320,6 @@ fn player_turn(win: *mut i8, game_state: &mut GameState) {
         print_combinations(win, (win_height / 2, win_width / 2), &scores, 14, game_state);
 
         for i in 0..5 {
-            //TOOD: print unicode dice doesn't work :(
-            //mvaddstr(win_height / 2, 1 + i as i32 * 4, "⚁");
-            //
             mvaddstr(win_height / 2 - chosen[i] as i32, 1 + i as i32 * 4, dice[i].to_string().as_ref());
         }
 
@@ -338,9 +414,8 @@ fn player_turn(win: *mut i8, game_state: &mut GameState) {
                 }
             }
             KEY_NEWLINE => {
-                if !game_state.player_chosen_combinations[current_element] {
-                    game_state.player_chosen_combinations[current_element] = true;
-                    game_state.player_score += scores[current_element] as i32;
+                if !game_state.player.has_used(current_element) {
+                    game_state.player.add_score(current_element, scores[current_element]);
                     break;
                 }
             }
@@ -371,23 +446,15 @@ fn score_index_to_string(i: usize) -> &'static str {
     }
 }
 
-struct GameState {
-    turn: Turn,
-    player_score: i32,
-    player_chosen_combinations: [bool; 13],
-    ai_score: i32,
-    ai_chosen_combinations: [bool; 13]
-}
-
 fn update(game_state: &GameState) {
     erase();
     addstr(&game_state.turn.to_string());
     addch('\n' as u32);
-    addstr(&format!("Your score: {}", game_state.player_score));
+    addstr(&format!("Your score: {}", game_state.player.score));
     addch('\n' as u32);
-    addstr(&format!("Ai score: {}", game_state.ai_score));
+    addstr(&format!("Ai score: {}", game_state.ai.score));
+    addch('\n' as u32);
 }
-
 
 fn wait(time: Duration) {
     refresh();
@@ -412,21 +479,21 @@ fn ai_turn(win: *mut i8, game_state: &mut GameState) {
     wait(Duration::from_millis(1000));
 
     let scores = calculate_scores(&dice);
-    let combinations_left: Vec<_> = game_state.ai_chosen_combinations.iter()
+    let combinations_left: Vec<_> = game_state.ai.combinations_used.iter()
         .enumerate()
         .filter(|x| !*x.1)
         .map(|x| x.0)
         .collect();
 
-    let choice = *combinations_left.iter().max_by_key(|&i| scores[*i]).unwrap();
+    let choice = *combinations_left.iter().max_by_key(|&i| scores[*i])
+        .expect("AI must have at least one combination to choose");
 
     let message = format!("Ai chose: {} for {} points",
                           score_index_to_string(choice),
                           scores[choice]);
     mvaddstr(win_height / 2 + 4, (win_width - message.len() as i32) / 2, &message);
     wait(Duration::from_millis(1500));
-    game_state.ai_chosen_combinations[choice] = true;
-    game_state.ai_score += scores[choice] as i32;
+    game_state.ai.add_score(choice, scores[choice]);
 }
 
 fn user_quit(win: *mut i8, game_state: &GameState) {
@@ -466,7 +533,6 @@ fn user_quit(win: *mut i8, game_state: &GameState) {
 }
 
 //TODO: yahtzee bonus and joker rules
-//TODO: lower section bonus
 fn main() {
     let win = initscr();
     start_color();
@@ -483,22 +549,14 @@ fn main() {
         help(win);
     }
 
-    let mut game_state = GameState {
-        turn: Turn { player: Player::Human, n: 1},
-
-        player_score: 0,
-        player_chosen_combinations: [false; 13],
-
-        ai_score: 0,
-        ai_chosen_combinations: [false; 13],
-    };
+    let mut game_state = GameState::default();
 
     loop {
         match game_state.turn.player {
-            Player::Human => {
+            PlayerKind::Human => {
                 player_turn(win, &mut game_state);
             }
-            Player::AI => {
+            PlayerKind::AI => {
                 ai_turn(win, &mut game_state)
             }
         }
@@ -507,7 +565,7 @@ fn main() {
             erase();
             use std::cmp::Ordering;
             
-            let message = match game_state.player_score.cmp(&game_state.ai_score) {
+            let message = match game_state.player.score.cmp(&game_state.ai.score) {
                 Ordering::Greater => {
                     "Congratulations! You won!"
                 }
@@ -522,8 +580,8 @@ fn main() {
                 "Game ended!",
                 message,
                 "",
-                &format!("Your score: {}\n", game_state.player_score),
-                &format!("Ai score: {}", game_state.ai_score),
+                &format!("Your score: {}\n", game_state.player.score),
+                &format!("Ai score: {}", game_state.ai.score),
                 "",
                 "Press any button to exit."
             ]);
