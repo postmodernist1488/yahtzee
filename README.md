@@ -18,7 +18,7 @@ $ cargo build --release
 $ cd target/release/
 $ ./yahtzee
 ```
-or install from [creates.io](https://crates.io/crates/yahtzee):
+or install from [crates.io](https://crates.io/crates/yahtzee):
 ```console
 $ cargo install yahtzee
 $ yahtzee
