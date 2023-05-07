@@ -112,20 +112,20 @@ mod keys {
     pub const KEY_NEWLINE: i32 = '\n' as i32;
 }
 #[allow(dead_code)]
-mod combinations {
-    pub const ACES            : usize = 0;
-    pub const TWOS            : usize = 1;
-    pub const THREES          : usize = 2;
-    pub const FOURS           : usize = 3;
-    pub const FIVES           : usize = 4;
-    pub const SIXES           : usize = 5;
-    pub const THREE_OF_A_KIND : usize = 6;
-    pub const FOUR_OF_A_KIND  : usize = 7;
-    pub const FULL_HOUSE      : usize = 8;
-    pub const SMALL_STRAIGHT  : usize = 9;
-    pub const LARGE_STRAIGHT  : usize = 10;
-    pub const YAHTZEE         : usize = 11;
-    pub const CHANCE          : usize = 12;
+enum Combinations {
+    Aces             = 0,
+    Twos             = 1,
+    Threes           = 2,
+    Fours            = 3,
+    Fives            = 4,
+    Sixes            = 5,
+    ThreeOfAKind     = 6,
+    FourOfAKind      = 7,
+    FullHouse        = 8,
+    SmallStraight    = 9,
+    LargeStraight    = 10,
+    Yahtzee          = 11,
+    Chance           = 12,
 }
 
 fn calculate_scores(dice: &[u8]) -> [u8; 13] {
@@ -156,13 +156,13 @@ fn calculate_scores(dice: &[u8]) -> [u8; 13] {
     }
 
     if most_frequent_count >= 3 {
-        scores[combinations::THREE_OF_A_KIND] = dice.iter().sum();
+        scores[Combinations::ThreeOfAKind as usize] = dice.iter().sum();
     }
     if most_frequent_count >= 4 {
-        scores[combinations::FOUR_OF_A_KIND] = dice.iter().sum();
+        scores[Combinations::FourOfAKind as usize] = dice.iter().sum();
     }
     if most_frequent_count == 3 && second_most_frequent_count == 2 {
-        scores[combinations::FULL_HOUSE] = 25;
+        scores[Combinations::FullHouse as usize] = 25;
     }
 
     let straight_len = {
@@ -182,15 +182,15 @@ fn calculate_scores(dice: &[u8]) -> [u8; 13] {
         std::cmp::max(cur_len, max_len)
     };
     if straight_len >= 4 {
-        scores[combinations::SMALL_STRAIGHT] = 30;
+        scores[Combinations::SmallStraight as usize] = 30;
     }
     if straight_len >= 5 {
-        scores[combinations::LARGE_STRAIGHT] = 40;
+        scores[Combinations::LargeStraight as usize] = 40;
     }
     if most_frequent_count >= 5 {
-        scores[combinations::YAHTZEE] = 50;
+        scores[Combinations::Yahtzee as usize] = 50;
     }
-    scores[combinations::CHANCE] = dice.iter().sum();
+    scores[Combinations::Chance as usize] = dice.iter().sum();
     scores
 }
 
@@ -367,7 +367,7 @@ fn score_index_to_string(i: usize) -> &'static str {
         10 => "Large Straight",
         11 => "Yahtzee (5 of a kind)", 
         12 => "Chance",
-        _ => unreachable!()
+        _ => panic!("Wrong score index")
     }
 }
 
@@ -467,8 +467,6 @@ fn user_quit(win: *mut i8, game_state: &GameState) {
 
 //TODO: yahtzee bonus and joker rules
 //TODO: lower section bonus
-//TODO: vim controls
-//TODO: q to exit
 fn main() {
     let win = initscr();
     start_color();
