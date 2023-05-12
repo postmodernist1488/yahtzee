@@ -243,7 +243,7 @@ fn print_padded_from_right(y: i32, win_width: i32, padding: i32, to_print: &str)
 }
 
 /// UI
-
+const DO_NOT_HIGHLIGHT: usize = usize::MAX;
 fn print_combinations(win: *mut i8,
                       pos: (i32, i32), 
                       scores: &[u8],
@@ -304,20 +304,36 @@ fn print_combinations(win: *mut i8,
     }
 }
 
+/*
+ * 
+struct TurnState {
+    dice: [u8; 5],
+    chosen: [bool; 5],
+    rolls_left: i32,
+    current_element: usize,
+    current_row: usize
+}
+let mut trn = TurnState::default();
+*/
+
 fn player_turn(win: *mut i8, game_state: &mut GameState) {
+
     let mut dice = [0u8; 5];
     randomize_dice(&mut dice, &(0..=4).collect());
     let mut chosen = [false; 5];
     let mut rolls_left = 2;
     let mut current_element: usize = 0;
+    let mut current_row = 0;
 
     let (win_height, win_width) = get_win_size(win);
     let mut scores = calculate_scores(&dice);
+
     while rolls_left > 0 {
         update(game_state);
 
         mvaddstr(win_height / 2 - 3, 0, &format!("Rolls left: {}", rolls_left));
-        print_combinations(win, (win_height / 2, win_width / 2), &scores, 14, game_state);
+        print_combinations(win, (win_height / 2, win_width / 2), 
+                           &scores, if current_element == 7 {current_row} else {DO_NOT_HIGHLIGHT}, game_state);
 
         for i in 0..5 {
             mvaddstr(win_height / 2 - chosen[i] as i32, 1 + i as i32 * 4, dice[i].to_string().as_ref());
@@ -336,7 +352,8 @@ fn player_turn(win: *mut i8, game_state: &mut GameState) {
                 mvaddch(win_height / 2, 29, '[' as u32);
                 mvaddch(win_height / 2, 34, ']' as u32);
             }
-            _ => unreachable!()
+            7 => (),
+            _ => unreachable!(),
 
         }
 
@@ -346,20 +363,36 @@ fn player_turn(win: *mut i8, game_state: &mut GameState) {
         let key = getch();
         match key {
             KEY_LEFT | KEY_H => {
-                current_element = (current_element as i32 - 1).rem_euclid(7) as usize;
+                current_element = (current_element as i32 - 1).rem_euclid(8) as usize;
             }
             KEY_RIGHT | KEY_L => {
-                current_element = (current_element + 1).rem_euclid(7);
+                current_element = (current_element + 1).rem_euclid(8);
             }
 
             KEY_UP | KEY_K => {
-                if let 0..=4 = current_element {
-                    chosen[current_element] = true;
+                match current_element {
+                    0..=4 => {
+                        chosen[current_element] = true;
+                    }
+                    7 => {
+                        if current_row > 0 {
+                            current_row -= 1;
+                        }
+                    }
+                    _ => (),
                 }
             }
             KEY_DOWN | KEY_J => {
-                if let 0..=4 = current_element {
-                    chosen[current_element] = false;
+                    match current_element {
+                    0..=4 => {
+                        chosen[current_element] = false;
+                    }
+                    7 => {
+                        if current_row < 12 {
+                            current_row += 1;
+                        }
+                    }
+                    _ => (),
                 }
             }
             KEY_NEWLINE => {
@@ -376,7 +409,13 @@ fn player_turn(win: *mut i8, game_state: &mut GameState) {
                     }
                     // Hold
                     6 => {
-                        rolls_left = 0;
+                        break;
+                    }
+                    7 => {
+                        if !game_state.player.has_used(current_row) {
+                            game_state.player.add_score(current_row, scores[current_row]);
+                            return;
+                        }
                     }
                     _ => {
                         unreachable!();
@@ -389,8 +428,8 @@ fn player_turn(win: *mut i8, game_state: &mut GameState) {
             _ => ()
         }
     }
-    current_element = 0;
     dice.sort();
+
     loop {
         update(game_state);
         for (i, die) in dice.iter().enumerate() {
@@ -398,24 +437,24 @@ fn player_turn(win: *mut i8, game_state: &mut GameState) {
         }
         mvaddstr(win_height / 2 - 11, 30, "Choose a combination");
 
-        print_combinations(win, (win_height / 2, win_width / 2), &scores, current_element, game_state);
+        print_combinations(win, (win_height / 2, win_width / 2), &scores, current_row, game_state);
 
         let key = getch();
         match key {
             KEY_UP | KEY_K => {
-                if current_element > 0 {
-                    current_element -= 1;
+                if current_row > 0 {
+                    current_row -= 1;
                 }
 
             }
             KEY_DOWN | KEY_J => {
-                if current_element < 12 {
-                    current_element += 1;
+                if current_row < 12 {
+                    current_row += 1;
                 }
             }
             KEY_NEWLINE => {
-                if !game_state.player.has_used(current_element) {
-                    game_state.player.add_score(current_element, scores[current_element]);
+                if !game_state.player.has_used(current_row) {
+                    game_state.player.add_score(current_row, scores[current_row]);
                     break;
                 }
             }
@@ -461,39 +500,43 @@ fn wait(time: Duration) {
     std::io::stdout().flush().unwrap();
     std::thread::sleep(time);
 }
-
-fn ai_turn(win: *mut i8, game_state: &mut GameState) {
-    update(game_state);
-    print_centered(win, "Ai is rolling...");
-    wait(Duration::from_millis(800));
-    let mut dice = [0u8; 5];
-    randomize_dice(&mut dice, &(0..=4).collect());
-
-    update(&game_state);
-    print_centered(win, "Ai rolled:");
-
-    let (win_height, win_width) = get_win_size(win);
-    let strs: Vec<_> = dice.iter().map(|x| x.to_string()).collect();
-    let joined = strs.join(", ");
-    mvaddstr(win_height / 2 + 2, (win_width - joined.len() as i32) / 2, &joined);
-    wait(Duration::from_millis(1000));
-
-    let scores = calculate_scores(&dice);
-    let combinations_left: Vec<_> = game_state.ai.combinations_used.iter()
+fn ai_choice(ai: &PlayerData, scores: &[u8]) -> usize {
+    let combinations_left: Vec<_> = ai.combinations_used.iter()
         .enumerate()
         .filter(|x| !*x.1)
         .map(|x| x.0)
         .collect();
 
-    let choice = *combinations_left.iter().max_by_key(|&i| scores[*i])
-        .expect("AI must have at least one combination to choose");
+    *combinations_left.iter().max_by_key(|&i| scores[*i])
+        .expect("AI must have at least one combination to choose")
+}
+
+fn ai_turn(win: *mut i8, game_state: &mut GameState) {
+    let (win_height, win_width) = get_win_size(win);
+    update(game_state);
+    print_centered(win, "Ai is rolling...");
+    wait(Duration::from_millis(800));
+
+    //////
+    let mut dice = [0u8; 5];
+    randomize_dice(&mut dice, &(0..5).collect());
+    let scores = calculate_scores(&dice);
+    let choice = ai_choice(&game_state.ai, &scores);
+    game_state.ai.add_score(choice, scores[choice]);
+    //////
+
+    update(&game_state);
+    print_centered(win, "Ai rolled:");
+    let strs: Vec<_> = dice.iter().map(|x| x.to_string()).collect();
+    let joined = strs.join(", ");
+    mvaddstr(win_height / 2 + 2, (win_width - joined.len() as i32) / 2, &joined);
+    wait(Duration::from_millis(1000));
 
     let message = format!("Ai chose: {} for {} points",
                           score_index_to_string(choice),
                           scores[choice]);
     mvaddstr(win_height / 2 + 4, (win_width - message.len() as i32) / 2, &message);
     wait(Duration::from_millis(1500));
-    game_state.ai.add_score(choice, scores[choice]);
 }
 
 fn user_quit(win: *mut i8, game_state: &GameState) {
@@ -533,6 +576,7 @@ fn user_quit(win: *mut i8, game_state: &GameState) {
 }
 
 //TODO: yahtzee bonus and joker rules
+//TODO: save highscores
 fn main() {
     let win = initscr();
     start_color();
