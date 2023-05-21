@@ -575,6 +575,147 @@ fn user_quit(win: *mut i8, game_state: &GameState) {
     }
 }
 
+struct Highscore {
+    name: String,
+    score: i32
+}
+
+impl std::fmt::Display for Highscore {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}: {}", self.name, self.score)
+    }
+}
+
+use std::fs::File;
+use std::io::{self, BufReader, BufRead};
+
+fn get_highscores(path: &str) -> Result<Vec<Highscore>, io::Error> {
+    if let Ok(file) = File::open(path) {
+        let reader = BufReader::new(file);
+
+        let mut highscores = Vec::new();
+
+        for line in reader.lines() {
+            match line?.split(':').collect::<Vec<_>>()[..] {
+                [name, score_str] => {
+                    if let Ok(score) = score_str.trim().parse() {
+                            highscores.push(Highscore { name: name.to_string(), score });
+                    }
+                }
+                _ => (),
+            }
+        }
+        Ok(highscores)
+    } else {
+        Ok(Vec::new())
+    }
+}
+
+fn write_highscores(path: &str, hs: &Vec<Highscore>) {
+    let mut file = File::create(path)
+                    .unwrap_or_else(|e| panic!("highscore file should open {}", e));
+    for h in hs {
+        writeln!(file, "{}", h).expect("write shouldn't fail");
+    }
+}
+
+macro_rules! wait_for {
+    ($key:ident) => {
+        loop {
+            let key = getch();
+            match key {
+                KEY_Q => return,
+                $key => break,
+                _ => (),
+            }
+        }
+    };
+}
+
+fn endgame_and_highscores(win: *mut i8, game_state: &GameState) {
+    use std::cmp::Ordering;
+
+    let (s1, s2) = (format!("Your score: {}\n", game_state.player.score), 
+                    format!("Ai score: {}", game_state.ai.score));
+
+    let mut final_message = vec![
+        "Game ended!",
+        match game_state.player.score.cmp(&game_state.ai.score) {
+            Ordering::Greater => {
+                "Congratulations! You won!"
+            }
+            Ordering::Equal => {
+                "It's a tie!"
+            }
+            Ordering::Less => {
+                "You lost!"
+            }
+        },
+        "",
+        "",
+        &s1,
+        &s2,
+        "",
+    ];
+
+    const HIGHSCORE_PATH: &str = "highscores.txt";
+    let mut highscores = get_highscores(HIGHSCORE_PATH)
+        //FIXME: don't panic
+        .unwrap_or_else(|e| panic!("highscore file should open {}", e));
+
+    if highscores.first().map(|x| x.score < game_state.player.score).unwrap_or(true) {
+        final_message[2] = "New highscore! Press h to see highscores";
+    } else {
+        final_message[2] = "Press h to see highscores";
+    }
+
+    print_centered_left_align(win, &final_message);
+
+
+    wait_for!(KEY_H);
+
+    clear();
+
+    let mut strs = Vec::new();
+    let mut strings = Vec::new();
+    strs.push("HIGHSCORES:");
+    strs.push("");
+    if highscores.is_empty() {
+        strs.push("");
+        strs.push("No highscores. Press Enter to add your score");
+    } else {
+        for h in highscores[..std::cmp::min(highscores.len(), 10)].iter() {
+            strings.push(format!("{}\n", h));
+        }
+        for s in strings.iter() {
+            strs.push(s);
+        }
+        strs.push("");
+        strs.push("Press Enter to add your score");
+    }
+    print_centered_left_align(win, &strs);
+
+    wait_for!(KEY_NEWLINE);
+
+    clear();
+    let (win_height, win_width) = get_win_size(win);
+    mvaddstr(win_height / 2, win_width / 2 - 20, "Enter your name: ");
+    let mut input = String::new();
+    echo();
+    getstr(&mut input);
+    noecho();
+
+    let h = Highscore {name: input, score: game_state.player.score};
+    let pos = highscores.binary_search_by(|h1| h.score.cmp(&h1.score)).unwrap_or_else(|e| e);
+    highscores.insert(pos, h);
+    write_highscores(HIGHSCORE_PATH, &highscores);
+    
+    clear();
+    print_centered_left_align(win, &["Added your score!", "Press any key to exit."]);
+    getch();
+    
+}
+
 //TODO: yahtzee bonus and joker rules
 //TODO: save highscores
 fn main() {
@@ -605,31 +746,12 @@ fn main() {
             }
         }
         game_state.turn.next();
+        #[cfg(debug_assertions)] {
+            game_state.turn.n = 14;
+        }
         if game_state.turn.n == 14 {
             erase();
-            use std::cmp::Ordering;
-            
-            let message = match game_state.player.score.cmp(&game_state.ai.score) {
-                Ordering::Greater => {
-                    "Congratulations! You won!"
-                }
-                Ordering::Equal => {
-                    "It's a tie!"
-                }
-                Ordering::Less => {
-                    "You lost!"
-                }
-            };
-            print_centered_left_align(win, &[
-                "Game ended!",
-                message,
-                "",
-                &format!("Your score: {}\n", game_state.player.score),
-                &format!("Ai score: {}", game_state.ai.score),
-                "",
-                "Press any button to exit."
-            ]);
-            getch();
+            endgame_and_highscores(win, &game_state);
             break;
         }
     }
