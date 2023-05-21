@@ -589,7 +589,17 @@ impl std::fmt::Display for Highscore {
 use std::fs::File;
 use std::io::{self, BufReader, BufRead};
 
+fn create_highscores(path: &str) -> Result<(), io::Error> {
+    let mut f = File::create(path)?;
+    write!(f, "Developer: 205\nVladimir: 120\n")
+}
+
 fn get_highscores(path: &str) -> Result<Vec<Highscore>, io::Error> {
+
+    if !std::path::Path::new(path).exists() {
+        create_highscores(path)?
+    }
+
     if let Ok(file) = File::open(path) {
         let reader = BufReader::new(file);
 
@@ -658,8 +668,9 @@ fn endgame_and_highscores(win: *mut i8, game_state: &GameState) {
         "",
     ];
 
-    const HIGHSCORE_PATH: &str = "highscores.txt";
-    let mut highscores = get_highscores(HIGHSCORE_PATH)
+    const HIGHSCORE_PATH: &str = "/.config/yahtzee.txt";
+    let highscore_path = std::env::var("HOME").unwrap_or("".to_string()) + HIGHSCORE_PATH;
+    let mut highscores = get_highscores(&highscore_path)
         //FIXME: don't panic
         .unwrap_or_else(|e| panic!("highscore file should open {}", e));
 
@@ -708,7 +719,7 @@ fn endgame_and_highscores(win: *mut i8, game_state: &GameState) {
     let h = Highscore {name: input, score: game_state.player.score};
     let pos = highscores.binary_search_by(|h1| h.score.cmp(&h1.score)).unwrap_or_else(|e| e);
     highscores.insert(pos, h);
-    write_highscores(HIGHSCORE_PATH, &highscores);
+    write_highscores(&highscore_path, &highscores);
     
     clear();
     print_centered_left_align(win, &["Added your score!", "Press any key to exit."]);
