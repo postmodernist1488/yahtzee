@@ -8,6 +8,7 @@ Yahtzee game in Rust
 ## Features
 - Ncurses TUI for playing in your favourite terminal
 - Simple AI that plays against the human player
+- Highscore saving (see ~/.config/highscore.txt)
 
 ## Installation
 You can either build the latest version from [Github](https://github.com/postmodernist1488/yahtzee-rs.git):
